@@ -1,0 +1,25 @@
+name: Publish SIMKL Watched
+on:
+  push:
+    tags: ['watched-v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet build Jellyfin.Plugin.Simkl/Jellyfin.Plugin.Simkl.csproj -c Release
+      - run: dotnet run --project tests/Checks.csproj -c Release
+      - name: Package
+        env:
+          BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+        run: python3 package.py --base-url "$BASE_URL"
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" dist/* --title "$RELEASE_TAG" --notes "SIMKL Watched — manual watched marks only" --latest

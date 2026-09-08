@@ -1,0 +1,13 @@
+---
+name: "Simkl Watched"
+guid: "29C23B82-7B4A-4F24-97D8-8567A618BCC3"
+version: 1
+targetAbi: "10.11.7.0"
+framework: "net9.0"
+owner: "custom"
+overview: "Manual watched marks to SIMKL"
+description: "Send manual watched marks, with persistent retries."
+category: "General"
+artifacts:
+  - "Jellyfin.Plugin.SimklWatched.dll"
+changelog: "Initial watched-only release based on upstream v8."
