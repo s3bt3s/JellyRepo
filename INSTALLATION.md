@@ -11,7 +11,7 @@ Variante du plugin officiel SIMKL v8. DLL .NET 9, base Jellyfin 10.11.7.
 - Films : identifiants du film. Épisodes : identifiants de la série + saison + épisode.
 - File persistante dans le dossier des configurations des plugins, sans jeton dans cette file.
 - Échecs : nouvelles tentatives espacées de 2 minutes à 1 heure. Un identifiant introuvable nécessite de corriger les métadonnées ; une autorisation expirée nécessite de reconnecter SIMKL.
-- Un seul envoi confirmé par couple utilisateur/média. Pas de suivi des revisionnages ni de suppression de l'historique SIMKL.
+- Anti-doublon uniquement pendant un envoi en attente ou en cours. Après confirmation, la demande est supprimée : un nouveau clic « Vu » permet un nouvel envoi. Pas de revisionnage ni de suppression de l'historique SIMKL.
 - La configuration SIMKL reste côté serveur, comme dans l'officiel (elle n'est pas chiffrée par cette variante).
 - La nouvelle identité impose une connexion PIN initiale. La gestion du plugin nécessite un compte administrateur Jellyfin.
 
@@ -66,7 +66,7 @@ Le script crée `dist/SimklWatched_1.0.0.0.zip` et `dist/manifest.json`. La DLL 
 
 Compilation avec analyseurs : zéro erreur, zéro avertissement. Tests locaux avec transport HTTP simulé : filtrage des événements, payloads film/épisode, réponses inconnues, erreurs HTTP. Aucune requête réelle de marquage n'a été envoyée à SIMKL. Le chargement dans Jellyfin, la connexion PIN et le cycle complet sur Ultra.cc restent à valider après publication.
 
-Le journal persistant empêche les renvois après confirmation et redémarrage. Une coupure entre l'acceptation distante et l'enregistrement local peut provoquer une nouvelle tentative : aucune garantie d'exactement un envoi réseau n'est possible sans idempotence distante.
+La file conserve uniquement les demandes en attente. Les anciennes confirmations de la version 1.0 sont purgées automatiquement au démarrage, sans perdre les demandes en attente. Après une suppression côté SIMKL, passer à « Non vu » puis « Vu » dans Jellyfin permet de renvoyer le média. Une coupure entre l'acceptation distante et l'enregistrement local peut provoquer une nouvelle tentative : aucune garantie d'exactement un envoi réseau n'est possible sans idempotence distante.
 
 La file n'importe pas les anciens médias déjà vus avant installation. Une remise à « Non vu » après un clic ne supprime pas la demande déjà mise en file : l'intégration est volontairement à sens unique.
 

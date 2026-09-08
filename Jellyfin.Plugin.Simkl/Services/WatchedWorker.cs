@@ -50,6 +50,17 @@ public sealed class WatchedWorker : BackgroundService
         {
             _deliveries = JsonSerializer.Deserialize<Dictionary<string, Delivery>>(File.ReadAllText(_path))
                 ?? throw new InvalidDataException("Invalid SIMKL delivery state");
+            // Migrate v1.0: successful deliveries must not block future manual marks.
+            var confirmed = _deliveries.Where(x => x.Value.Sent).Select(x => x.Key).ToArray();
+            foreach (var key in confirmed)
+            {
+                _deliveries.Remove(key);
+            }
+
+            if (confirmed.Length > 0)
+            {
+                Save();
+            }
         }
 
         _users.UserDataSaved += OnSaved;
@@ -85,29 +96,52 @@ public sealed class WatchedWorker : BackgroundService
 
         try
         {
-            lock (_gate)
-            {
-                var key = $"{e.UserId:N}:{e.Item.Id:N}";
-                if (_deliveries.ContainsKey(key))
-                {
-                    return;
-                }
-
-                _deliveries.Add(key, new Delivery { UserId = e.UserId, ItemId = e.Item.Id });
-                try
-                {
-                    Save();
-                }
-                catch
-                {
-                    _deliveries.Remove(key);
-                    throw;
-                }
-            }
+            QueueDelivery(e.UserId, e.Item.Id);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Could not persist watched mark for {ItemId}", e.Item.Id);
+        }
+    }
+
+    private void QueueDelivery(Guid userId, Guid itemId)
+    {
+        var key = $"{userId:N}:{itemId:N}";
+        lock (_gate)
+        {
+            if (_deliveries.ContainsKey(key))
+            {
+                return;
+            }
+
+            _deliveries.Add(key, new Delivery { UserId = userId, ItemId = itemId });
+            try
+            {
+                Save();
+            }
+            catch
+            {
+                _deliveries.Remove(key);
+                throw;
+            }
+        }
+    }
+
+    private void RecordResult(string key, Delivery delivery, bool sent)
+    {
+        lock (_gate)
+        {
+            if (sent)
+            {
+                _deliveries.Remove(key);
+            }
+            else
+            {
+                delivery.Attempts++;
+                delivery.NextAttempt = DateTime.UtcNow.AddMinutes(Math.Min(60, Math.Pow(2, Math.Min(6, delivery.Attempts))));
+            }
+
+            Save();
         }
     }
 
@@ -179,13 +213,7 @@ public sealed class WatchedWorker : BackgroundService
                     _log.LogWarning("SIMKL delivery failed for {ItemId}: {ErrorType}", entry.Value.ItemId, ex.GetType().Name);
                 }
 
-                lock (_gate)
-                {
-                    entry.Value.Sent = sent;
-                    entry.Value.Attempts++;
-                    entry.Value.NextAttempt = DateTime.UtcNow.AddMinutes(Math.Min(60, Math.Pow(2, Math.Min(6, entry.Value.Attempts))));
-                    Save();
-                }
+                RecordResult(entry.Key, entry.Value, sent);
 
                 if (sent)
                 {
@@ -208,7 +236,7 @@ public sealed class WatchedWorker : BackgroundService
         /// <summary>Gets or sets the media.</summary>
         public Guid ItemId { get; set; }
 
-        /// <summary>Gets or sets a value indicating whether delivery succeeded.</summary>
+        /// <summary>Gets or sets a value indicating whether a legacy delivery succeeded (migration only).</summary>
         public bool Sent { get; set; }
 
         /// <summary>Gets or sets the attempts.</summary>
