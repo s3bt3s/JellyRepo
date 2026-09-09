@@ -61,7 +61,13 @@ try
  queue.Invoke(restored,new object[]{userId,itemId});
  var original=loaded[key];
  queue.Invoke(restored,new object[]{userId,itemId});
- Check(ReferenceEquals(original,loaded[key]),"pending duplicates coalesced");
+ Check(!ReferenceEquals(original,loaded[key]),"new click replaces pending request");
+ var newest=loaded[key];
+ result.Invoke(restored,new object[]{key,original,true});
+ Check(ReferenceEquals(newest,loaded[key]),"old success cannot erase new click during HTTP call");
+ result.Invoke(restored,new object[]{key,original,false});
+ Check(loaded[key].Attempts==0 && loaded[key].NextAttempt<=DateTime.UtcNow,"old failure cannot delay new click");
+ original=newest;
  result.Invoke(restored,new object[]{key,original,false});
  Check(loaded[key].Attempts==1 && loaded[key].NextAttempt>DateTime.UtcNow,"failure retained for retry");
  result.Invoke(restored,new object[]{key,original,true});
@@ -70,6 +76,12 @@ try
  Check(!disk.ContainsKey(key),"success removal persisted");
  queue.Invoke(restored,new object[]{userId,itemId});
  Check(loaded.ContainsKey(key) && !ReferenceEquals(original,loaded[key]),"new manual mark allowed after success");
+ var waiting=loaded[key];
+ result.Invoke(restored,new object[]{key,waiting,false});
+ queue.Invoke(restored,new object[]{userId,itemId});
+ Check(loaded[key].Attempts==0 && loaded[key].NextAttempt<=DateTime.UtcNow,"explicit click bypasses retry backoff");
+ var persisted=JsonSerializer.Deserialize<Dictionary<string,WatchedWorker.Delivery>>(File.ReadAllText(Path.Combine(stateDir,"SimklWatched.deliveries.json")))!;
+ Check(persisted[key].NextAttempt<=DateTime.UtcNow,"fresh click immediately eligible after restart");
  Check(!File.ReadAllText(Path.Combine(stateDir,"SimklWatched.deliveries.json")).Contains("test-token"),"queue has no token");
  await restored.StopAsync(CancellationToken.None);
  restored.Dispose();worker.Dispose();

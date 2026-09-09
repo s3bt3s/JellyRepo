@@ -109,19 +109,24 @@ public sealed class WatchedWorker : BackgroundService
         var key = $"{userId:N}:{itemId:N}";
         lock (_gate)
         {
-            if (_deliveries.ContainsKey(key))
-            {
-                return;
-            }
-
-            _deliveries.Add(key, new Delivery { UserId = userId, ItemId = itemId });
+            // Every explicit mark is a fresh request, even during a retry or HTTP call.
+            _deliveries.TryGetValue(key, out var previous);
+            _deliveries[key] = new Delivery { UserId = userId, ItemId = itemId };
             try
             {
                 Save();
             }
             catch
             {
-                _deliveries.Remove(key);
+                if (previous == null)
+                {
+                    _deliveries.Remove(key);
+                }
+                else
+                {
+                    _deliveries[key] = previous;
+                }
+
                 throw;
             }
         }
@@ -131,6 +136,12 @@ public sealed class WatchedWorker : BackgroundService
     {
         lock (_gate)
         {
+            // A completed older call must never remove or delay a newer user request.
+            if (!_deliveries.TryGetValue(key, out var current) || !ReferenceEquals(current, delivery))
+            {
+                return;
+            }
+
             if (sent)
             {
                 _deliveries.Remove(key);
@@ -166,6 +177,14 @@ public sealed class WatchedWorker : BackgroundService
             foreach (var entry in pending)
             {
                 stoppingToken.ThrowIfCancellationRequested();
+                lock (_gate)
+                {
+                    if (!_deliveries.TryGetValue(entry.Key, out var current) || !ReferenceEquals(current, entry.Value))
+                    {
+                        continue;
+                    }
+                }
+
                 var sent = false;
                 try
                 {

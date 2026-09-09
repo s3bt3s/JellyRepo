@@ -11,7 +11,7 @@ Variante du plugin officiel SIMKL v8. DLL .NET 9, base Jellyfin 10.11.7.
 - Films : identifiants du film. Épisodes : identifiants de la série + saison + épisode.
 - File persistante dans le dossier des configurations des plugins, sans jeton dans cette file.
 - Échecs : nouvelles tentatives espacées de 2 minutes à 1 heure. Un identifiant introuvable nécessite de corriger les métadonnées ; une autorisation expirée nécessite de reconnecter SIMKL.
-- Anti-doublon uniquement pendant un envoi en attente ou en cours. Après confirmation, la demande est supprimée : un nouveau clic « Vu » permet un nouvel envoi. Pas de revisionnage ni de suppression de l'historique SIMKL.
+- Un nouveau marquage manuel remplace la demande en attente et annule son délai de nouvelle tentative. Si un envoi est déjà en cours, sa réponse ne peut pas effacer le nouveau clic. Les requêtes HTTP restent séquentielles. Après confirmation, la demande est supprimée : un nouveau clic « Vu » permet un nouvel envoi. Pas de revisionnage ni de suppression de l'historique SIMKL.
 - La configuration SIMKL reste côté serveur, comme dans l'officiel (elle n'est pas chiffrée par cette variante).
 - La nouvelle identité impose une connexion PIN initiale. La gestion du plugin nécessite un compte administrateur Jellyfin.
 
